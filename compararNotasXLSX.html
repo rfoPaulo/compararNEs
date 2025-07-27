@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparador de Arquivos XLSX</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS/xlsx library via CDN -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos personalizados */
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Previne a rolagem do corpo da página */
+        }
+        .highlight {
+            background-color: #facc15; /* yellow-400 */
+            color: #111827; /* gray-900 */
+            font-weight: bold;
+            border-radius: 3px;
+            padding: 1px 2px;
+        }
+        /* Custom scrollbar for better dark mode aesthetics */
+        ::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937; /* gray-800 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #4b5563; /* gray-600 */
+            border-radius: 20px;
+            border: 3px solid #1f2937; /* gray-800 */
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #6b7280; /* gray-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <div class="h-[calc(100vh-20px)] m-2.5 w-auto flex flex-col bg-gray-800 rounded-lg shadow-2xl">
+        <!-- Barra de Controle Compacta -->
+        <div id="control-bar" class="flex-shrink-0 p-2 bg-gray-800 border-b border-gray-700 space-y-2">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <!-- Botão de Instruções -->
+                <button id="info-btn" class="flex-shrink-0 h-7 w-7 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white font-bold text-sm transition-colors" title="Instruções">i</button>
+                
+                <!-- Controles de Arquivo -->
+                <label for="file-input-1" class="text-sm px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors">Arquivo Base</label>
+                <input type="file" id="file-input-1" class="hidden" accept=".xlsx">
+                <span id="file-name-1" class="text-xs text-green-400 max-w-xs truncate">Nenhum selecionado</span>
+
+                <label for="file-input-2" class="text-sm px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors">Arquivo Novo</label>
+                <input type="file" id="file-input-2" class="hidden" accept=".xlsx">
+                <span id="file-name-2" class="text-xs text-green-400 max-w-xs truncate">Nenhum selecionado</span>
+
+                <button id="compare-btn" class="text-sm px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-md transition-colors">Comparar</button>
+                
+                <!-- Filtro -->
+                <div class="flex-grow">
+                    <input type="text" id="filter-input" placeholder='Filtrar... (use "" para frases, ex: "termo 1" termo2)' class="w-full text-sm p-1.5 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+            </div>
+             <!-- Status -->
+            <div class="grid grid-cols-3 items-center min-h-[20px]">
+                <div id="status-container" class="text-xs text-yellow-300"></div>
+                <div id="filter-status" class="text-xs text-gray-400 text-center"></div>
+                <div></div> <!-- Spacer -->
+            </div>
+        </div>
+
+        <!-- Seção de Resultados -->
+        <div id="results-container" class="flex-grow flex flex-col overflow-hidden">
+             <div id="table-wrapper" class="flex-grow overflow-auto bg-gray-900">
+                <table class="min-w-full text-sm text-left text-gray-300 table-fixed">
+                    <thead class="text-xs text-gray-300 uppercase bg-gray-700 sticky top-0 z-10">
+                        <tr>
+                            <!-- Cabeçalhos das colunas A a F -->
+                            <th scope="col" class="px-6 py-3">Processo</th>
+                            <th scope="col" class="px-6 py-3">SUPP</th>
+                            <th scope="col" class="px-6 py-3">Diário</th>
+                            <th scope="col" class="px-6 py-3">Órgão</th>
+                            <th scope="col" class="px-6 py-3">Teor da NE</th>
+                            <th scope="col" class="px-6 py-3">Critérios PGE</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-tbody" class="bg-gray-800">
+                        <!-- Linhas de resultado serão inseridas aqui -->
+                    </tbody>
+                </table>
+            </div>
+             <div id="no-results-message" class="flex-grow flex items-center justify-center text-gray-500 hidden">
+                <p>Nenhum resultado encontrado para o filtro atual.</p>
+            </div>
+             <div id="initial-message" class="flex-grow flex items-center justify-center text-gray-500">
+                <p>Aguardando arquivos para comparação...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Instruções -->
+    <div id="info-modal-overlay" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div id="info-modal" class="bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl mx-4 border border-gray-700">
+            <h2 class="text-2xl font-bold text-white mb-4">Instruções de Uso</h2>
+            <div class="text-gray-300 space-y-3">
+                <p><strong class="text-blue-400">1. Selecionar Arquivos:</strong> Clique nos botões "Arquivo Base" e "Arquivo Novo" para carregar suas planilhas .xlsx. O "Arquivo Base" é a base de comparação e o "Arquivo Novo" contém os novos dados.</p>
+                <p><strong class="text-blue-400">2. Comparar:</strong> Após selecionar os dois arquivos, clique no botão "Comparar". A aplicação irá processar os dados e exibir na tabela abaixo todas as linhas que estão no Arquivo Novo, mas não no Arquivo Base.</p>
+                <p><strong class="text-blue-400">3. Filtrar Resultados:</strong> Utilize o campo de filtro para refinar a busca nos resultados. Você pode:</p>
+                <ul class="list-disc list-inside pl-4 space-y-1">
+                    <li><strong>Buscar por múltiplos termos:</strong> Digite palavras separadas por espaço (ex: `pauta alexsander`). A busca retornará linhas que contenham <span class="font-bold">todos</span> os termos.</li>
+                    <li><strong>Buscar por frase exata:</strong> Envolva o termo em aspas duplas (ex: `"pauta de julgamento"`).</li>
+                </ul>
+                <p><strong class="text-blue-400">4. Navegar na Tabela:</strong> A tabela pode ser rolada verticalmente e horizontalmente. O cabeçalho permanecerá fixo para facilitar a visualização.</p>
+            </div>
+            <div class="mt-6 text-right">
+                <button id="close-modal-btn" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition-colors">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Elementos da DOM
+        const fileInput1 = document.getElementById('file-input-1');
+        const fileInput2 = document.getElementById('file-input-2');
+        const fileName1 = document.getElementById('file-name-1');
+        const fileName2 = document.getElementById('file-name-2');
+        const compareBtn = document.getElementById('compare-btn');
+        const statusContainer = document.getElementById('status-container');
+        const resultsContainer = document.getElementById('results-container');
+        const filterInput = document.getElementById('filter-input');
+        const filterStatus = document.getElementById('filter-status');
+        const resultsTbody = document.getElementById('results-tbody');
+        const noResultsMessage = document.getElementById('no-results-message');
+        const initialMessage = document.getElementById('initial-message');
+        const tableWrapper = document.getElementById('table-wrapper');
+        const infoBtn = document.getElementById('info-btn');
+        const infoModalOverlay = document.getElementById('info-modal-overlay');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+
+        let differences = []; // Armazena os resultados da comparação original
+        const IGNORED_COLUMN = 'Importada em'; // Coluna a ser ignorada na comparação
+        const DISPLAY_COLUMNS = []; // Será preenchido com os nomes das colunas A-F
+
+        /**
+         * Atualiza o estado do botão de comparação.
+         */
+        function updateCompareButtonState() {
+            compareBtn.disabled = !(fileInput1.files.length > 0 && fileInput2.files.length > 0);
+        }
+
+        // Listeners para os inputs de arquivo
+        fileInput1.addEventListener('change', () => {
+            fileName1.textContent = fileInput1.files[0]?.name || 'Nenhum selecionado';
+            updateCompareButtonState();
+        });
+
+        fileInput2.addEventListener('change', () => {
+            fileName2.textContent = fileInput2.files[0]?.name || 'Nenhum selecionado';
+            updateCompareButtonState();
+        });
+
+        /**
+         * Lê um arquivo XLSX e o converte para um array de objetos JSON.
+         * @param {File} file - O arquivo a ser lido.
+         * @returns {Promise<Array<Object>>} Uma promessa que resolve com os dados da planilha.
+         */
+        function readXlsxFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const sheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[sheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                        resolve(jsonData);
+                    } catch (error) {
+                        reject(new Error(`Falha ao processar o arquivo ${file.name}. Verifique se o formato é válido.`));
+                    }
+                };
+                reader.onerror = (error) => reject(new Error(`Falha ao ler o arquivo ${file.name}.`));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        /**
+         * Cria um identificador único para uma linha, ignorando a coluna especificada.
+         * @param {Object} row - O objeto da linha.
+         * @returns {string} O identificador único da linha.
+         */
+        function createRowIdentifier(row) {
+            const rowCopy = { ...row };
+            delete rowCopy[IGNORED_COLUMN];
+            return Object.values(rowCopy).join('||');
+        }
+
+        /**
+         * Exibe uma mensagem de status/erro para o usuário.
+         * @param {string} message - A mensagem a ser exibida.
+         * @param {'info' | 'error' | 'success' | 'loading'} type - O tipo de mensagem.
+         */
+        function showStatus(message, type = 'info') {
+            statusContainer.textContent = message;
+            statusContainer.className = 'text-xs'; // Reset classes
+            if (type === 'error') {
+                statusContainer.classList.add('text-red-400');
+            } else if (type === 'success') {
+                statusContainer.classList.add('text-green-400');
+            } else if (type === 'loading') {
+                statusContainer.classList.add('text-blue-400');
+            } else {
+                 statusContainer.classList.add('text-yellow-300');
+            }
+        }
+
+        /**
+         * Realiza a comparação entre os dois arquivos.
+         */
+        compareBtn.addEventListener('click', async () => {
+            if (compareBtn.disabled) return;
+
+            showStatus('Processando arquivos...', 'loading');
+            initialMessage.classList.add('hidden');
+            tableWrapper.classList.add('hidden');
+            resultsTbody.innerHTML = '';
+            filterStatus.textContent = '';
+            differences = [];
+            DISPLAY_COLUMNS.length = 0; // Limpa as colunas para recarregar a cada comparação
+
+            try {
+                const [data1, data2] = await Promise.all([
+                    readXlsxFile(fileInput1.files[0]),
+                    readXlsxFile(fileInput2.files[0])
+                ]);
+
+                // CORREÇÃO: Pega os cabeçalhos do arquivo que tiver dados.
+                if (DISPLAY_COLUMNS.length === 0) {
+                    let headers;
+                    if (data2.length > 0) { // Prioriza o arquivo 2 para os cabeçalhos
+                        headers = Object.keys(data2[0]);
+                    } else if (data1.length > 0) {
+                        headers = Object.keys(data1[0]);
+                    }
+                    
+                    if (headers) {
+                        DISPLAY_COLUMNS.push(...headers.slice(0, 6));
+                    } else {
+                        showStatus('Nenhum dos arquivos contém dados para exibir.', 'info');
+                        return;
+                    }
+                }
+
+                showStatus('Comparando dados...', 'loading');
+                const identifiersFile1 = new Set(data1.map(createRowIdentifier));
+                differences = data2.filter(row => !identifiersFile1.has(createRowIdentifier(row)));
+                
+                statusContainer.textContent = ''; // Limpa o status de carregamento
+
+                if (differences.length > 0) {
+                    renderTable(differences);
+                } else {
+                    showStatus('Nenhuma diferença encontrada.', 'info');
+                    initialMessage.classList.remove('hidden');
+                    initialMessage.querySelector('p').textContent = 'Nenhuma diferença encontrada.';
+                }
+
+            } catch (error) {
+                showStatus(error.message, 'error');
+            }
+        });
+
+        /**
+         * Renderiza os dados na tabela de resultados com formatação customizada.
+         * @param {Array<Object>} data - Os dados a serem renderizados.
+         * @param {Array<string>} [searchTerms=[]] - Os termos de busca para destacar.
+         */
+        function renderTable(data, searchTerms = []) {
+            resultsTbody.innerHTML = '';
+            initialMessage.classList.add('hidden');
+            
+            const totalCount = differences.length;
+            const filteredCount = data.length;
+            if (totalCount > 0) {
+                filterStatus.className = 'text-xs font-semibold text-green-400 text-center';
+                filterStatus.textContent = `Exibindo ${filteredCount} de ${totalCount} resultado(s).`;
+            } else {
+                filterStatus.textContent = '';
+            }
+
+            if (data.length === 0 && totalCount > 0) {
+                noResultsMessage.classList.remove('hidden');
+                tableWrapper.classList.add('hidden');
+            } else {
+                noResultsMessage.classList.add('hidden');
+                tableWrapper.classList.remove('hidden');
+            }
+
+            const fragment = document.createDocumentFragment();
+            const mainSearchRegex = searchTerms.length > 0 
+                ? new RegExp(`(${searchTerms.map(escapeRegExp).join('|')})`, 'gi')
+                : null;
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-700 hover:bg-gray-700/50';
+
+                // Extrai termos da coluna 'Critérios PGE' para destacar na 'Teor da NE'
+                const criteriosPGEValue = row['Critérios PGE'] || '';
+                const pgeTermsToHighlight = [];
+                if (criteriosPGEValue) {
+                    const matches = String(criteriosPGEValue).match(/\[(.*?)\]/g);
+                    if (matches) {
+                        matches.forEach(match => {
+                            const term = match.substring(1, match.length - 1);
+                            if (term) {
+                                pgeTermsToHighlight.push(escapeRegExp(term));
+                            }
+                        });
+                    }
+                }
+                const pgeRegex = pgeTermsToHighlight.length > 0
+                    ? new RegExp(`(${pgeTermsToHighlight.join('|')})`, 'gi')
+                    : null;
+
+
+                DISPLAY_COLUMNS.forEach(colName => {
+                    const td = document.createElement('td');
+                    const baseClasses = 'px-6 py-4 align-top'; 
+                    let specificClasses = '';
+                    let cellValue = row[colName] || '';
+                    let processedCellValue = String(cellValue);
+
+                    switch (colName) {
+                        case 'Processo':
+                            specificClasses = 'whitespace-normal break-words w-[300px]';
+                            processedCellValue = processedCellValue.replace(/\]/g, ']<br>');
+                            break;
+                        case 'Órgão':
+                            specificClasses = 'whitespace-normal break-words w-[200px]';
+                            break;
+                        case 'Teor da NE':
+                            specificClasses = 'whitespace-normal w-[620px]';
+                            // Aplica o destaque dos critérios PGE
+                            if (pgeRegex) {
+                                processedCellValue = processedCellValue.replace(pgeRegex, `<span class="bg-indigo-700 rounded px-1">$1</span>`);
+                            }
+                            break;
+                        case 'Critérios PGE':
+                            specificClasses = 'whitespace-normal break-words w-[200px]';
+                            processedCellValue = processedCellValue.replace(/#/g, '<br>#').replace(/^<br>/, '');
+                            break;
+                        default:
+                            specificClasses = 'whitespace-nowrap';
+                            break;
+                    }
+                    td.className = `${baseClasses} ${specificClasses}`;
+
+                    // Aplica o destaque amarelo da busca principal sobre qualquer outro
+                    if (mainSearchRegex) {
+                        td.innerHTML = processedCellValue.replace(mainSearchRegex, `<span class="highlight">$1</span>`);
+                    } else {
+                        td.innerHTML = processedCellValue;
+                    }
+                    tr.appendChild(td);
+                });
+                fragment.appendChild(tr);
+            });
+            resultsTbody.appendChild(fragment);
+        }
+
+        /**
+         * Escapa caracteres especiais para uso em uma expressão regular.
+         * @param {string} string - A string a ser escapada.
+         * @returns {string} A string com caracteres escapados.
+         */
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
+        /**
+         * Função Debounce para otimizar a performance de eventos repetitivos.
+         * @param {Function} func - A função a ser executada após o delay.
+         * @param {number} delay - O tempo de espera em milissegundos.
+         * @returns {Function}
+         */
+        function debounce(func, delay) {
+            let timeoutId;
+            return function(...args) {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func.apply(this, args);
+                }, delay);
+            };
+        }
+
+        // Handler para o evento de input do filtro
+        const handleFilterInput = (e) => {
+            const rawSearchText = e.target.value.trim();
+            if (!differences.length) return;
+
+            const searchTerms = rawSearchText.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+            
+            const cleanedTerms = searchTerms.map(term => 
+                term.replace(/^"|"$/g, '').toLowerCase()
+            ).filter(term => term);
+
+            if (cleanedTerms.length === 0) {
+                renderTable(differences);
+                return;
+            }
+
+            const filteredData = differences.filter(row => {
+                return cleanedTerms.every(term => {
+                    return DISPLAY_COLUMNS.some(colName => 
+                        String(row[colName] || '').toLowerCase().includes(term)
+                    );
+                });
+            });
+
+            renderTable(filteredData, cleanedTerms);
+        };
+
+        // Listeners
+        filterInput.addEventListener('input', debounce(handleFilterInput, 500));
+
+        infoBtn.addEventListener('click', () => {
+            infoModalOverlay.classList.remove('hidden');
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            infoModalOverlay.classList.add('hidden');
+        });
+
+        infoModalOverlay.addEventListener('click', (e) => {
+            if (e.target === infoModalOverlay) {
+                infoModalOverlay.classList.add('hidden');
+            }
+        });
+
+
+        // Inicializa o estado do botão
+        updateCompareButtonState();
+        tableWrapper.classList.add('hidden'); // Esconde a tabela inicialmente
+    </script>
+</body>
+</html>
