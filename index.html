@@ -22,6 +22,21 @@
             border-radius: 3px;
             padding: 1px 2px;
         }
+        /* Estilo para a linha atualmente selecionada pelo botão flutuante */
+        tbody tr.current-row {
+            background-color: rgba(59, 130, 246, 0.2); /* bg-blue-500 com opacidade */
+            --tw-ring-color: #3b82f6;
+            --tw-ring-offset-shadow: 0 0 #0000;
+            --tw-ring-shadow: 0 0 #0000;
+            box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+            outline: 2px solid var(--tw-ring-color);
+            outline-offset: -2px;
+        }
+        /* ATUALIZADO: Adicionada margem de rolagem para as linhas da tabela */
+        tbody tr {
+            /* Deixa uma margem no topo ao rolar, evitando que a linha fique sob o cabeçalho fixo. */
+            scroll-margin-top: 45px; 
+        }
         /* Custom scrollbar for better dark mode aesthetics */
         ::-webkit-scrollbar {
             width: 12px;
@@ -67,6 +82,10 @@
                 <div></div> </div>
         </div>
 
+        <div id="predefined-filters-container" class="flex-shrink-0 p-2 border-b border-gray-700 flex flex-wrap items-center gap-x-3 gap-y-2 hidden">
+             </div>
+
+
         <div id="results-container" class="flex-grow flex flex-col overflow-hidden">
              <div id="table-wrapper" class="flex-grow overflow-auto bg-gray-900">
                 <table class="min-w-full text-sm text-left text-gray-300 table-fixed">
@@ -99,18 +118,18 @@
             <div class="text-gray-300 space-y-3">
                 <p><strong class="text-blue-400">1. Selecionar Arquivos:</strong> Clique nos botões "Arquivo Base" e "Arquivo Novo" para carregar suas planilhas .xlsx. O "Arquivo Base" é a base de comparação e o "Arquivo Novo" contém os novos dados.</p>
                 <p><strong class="text-blue-400">2. Comparar:</strong> Após selecionar os dois arquivos, clique no botão "Comparar". A aplicação irá processar os dados e exibir na tabela abaixo todas as linhas que estão no Arquivo Novo, mas não no Arquivo Base, com base na 5ª coluna.</p>
-                <p><strong class="text-blue-400">3. Filtrar Resultados:</strong> Utilize o campo de filtro para refinar a busca nos resultados. Você pode:</p>
-                <ul class="list-disc list-inside pl-4 space-y-1">
-                    <li><strong>Buscar por múltiplos termos:</strong> Digite palavras separadas por espaço (ex: `pauta alexsander`). A busca retornará linhas que contenham <span class="font-bold">todos</span> os termos.</li>
-                    <li><strong>Buscar por frase exata:</strong> Envolva o termo em aspas duplas (ex: `"pauta de julgamento"`).</li>
-                </ul>
-                <p><strong class="text-blue-400">4. Navegar na Tabela:</strong> A tabela pode ser rolada verticalmente e horizontalmente. O cabeçalho permanecerá fixo para facilitar a visualização.</p>
+                <p><strong class="text-blue-400">3. Filtrar Resultados:</strong> Utilize o campo de filtro para refinar a busca nos resultados. Você pode usar o campo de texto ou clicar em um dos botões de "Filtros Rápidos".</p>
+                <p><strong class="text-blue-400">4. Navegar na Tabela:</strong> A tabela pode ser rolada verticalmente e horizontalmente. Quando houver resultados, um botão flutuante com o texto "Próx." aparecerá no canto inferior direito para navegar linha a linha.</p>
             </div>
             <div class="mt-6 text-right">
                 <button id="close-modal-btn" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition-colors">Fechar</button>
             </div>
         </div>
     </div>
+
+    <button id="next-row-btn" title="Próxima Linha" class="hidden fixed bottom-6 right-6 h-12 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full flex items-center justify-center shadow-lg transition-transform duration-200 hover:scale-110">
+        Próx.
+    </button>
 
 
     <script>
@@ -131,9 +150,82 @@
     const infoBtn = document.getElementById('info-btn');
     const infoModalOverlay = document.getElementById('info-modal-overlay');
     const closeModalBtn = document.getElementById('close-modal-btn');
+    const nextRowBtn = document.getElementById('next-row-btn'); 
+    const predefinedFiltersContainer = document.getElementById('predefined-filters-container');
 
     let differences = [];
     let displayColumns = [];
+    let currentRowIndex = -1; 
+
+    const PREDEFINED_FILTERS = ['#proc', '[audiencia]', '[pauta]', '[s]', '[trt4]', '[corag]'];
+
+    function setupPredefinedFilters() {
+        predefinedFiltersContainer.innerHTML = ''; 
+        PREDEFINED_FILTERS.forEach(filterTerm => {
+            const button = document.createElement('button');
+            button.className = 'text-xs px-2.5 py-1 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors';
+            button.dataset.filter = filterTerm; 
+            button.innerHTML = `${filterTerm} <span class="font-bold text-gray-500">0</span>`;
+            predefinedFiltersContainer.appendChild(button);
+        });
+    }
+
+    function updatePredefinedFilterCounts() {
+        if (differences.length === 0) {
+            predefinedFiltersContainer.classList.add('hidden');
+            return;
+        }
+        predefinedFiltersContainer.classList.remove('hidden');
+
+        PREDEFINED_FILTERS.forEach(filterTerm => {
+            const searchTerm = filterTerm.toLowerCase();
+            if (!searchTerm) return; 
+
+            const count = differences.filter(row => 
+                Object.values(row).some(cellValue => 
+                    String(cellValue || '').toLowerCase().includes(searchTerm)
+                )
+            ).length;
+
+            const button = predefinedFiltersContainer.querySelector(`[data-filter="${filterTerm}"]`);
+            if(button) {
+                const countColorClass = count === 0 ? 'text-gray-500' : 'text-green-400';
+                button.innerHTML = `${filterTerm} <span class="font-bold ${countColorClass}">${count}</span>`;
+            }
+        });
+    }
+    
+    predefinedFiltersContainer.addEventListener('click', (e) => {
+        const button = e.target.closest('button');
+        if (button && button.dataset.filter) {
+            filterInput.value = button.dataset.filter;
+            filterInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    });
+
+    nextRowBtn.addEventListener('click', () => {
+        const visibleRows = resultsTbody.querySelectorAll('tr');
+        if (visibleRows.length === 0) return;
+
+        const oldRow = resultsTbody.querySelector('.current-row');
+        if (oldRow) {
+            oldRow.classList.remove('current-row');
+        }
+        
+        currentRowIndex++;
+        if (currentRowIndex >= visibleRows.length) {
+            currentRowIndex = 0;
+        }
+
+        const newRow = visibleRows[currentRowIndex];
+        if (newRow) {
+            newRow.classList.add('current-row');
+            newRow.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    });
 
     function updateCompareButtonState() {
         compareBtn.disabled = !(fileInput1.files.length > 0 && fileInput2.files.length > 0);
@@ -169,29 +261,15 @@
         });
     }
 
-    /**
-     * CORRIGIDO: Cria um identificador único com base no valor da 5ª coluna,
-     * fazendo uma limpeza robusta do texto para garantir a comparação correta.
-     * @param {Object} row - O objeto da linha.
-     * @returns {string} O identificador único da linha.
-     */
     function createRowIdentifier(row) {
-        // Pega os valores da linha como um array.
         const values = Object.values(row);
-        // Pega o valor da 5ª coluna (índice 4).
         const value = values.length > 4 ? values[4] : '';
-        // Normalização robusta:
-        // 1. Converte para string.
-        // 2. Substitui qualquer sequência de espaços, quebras de linha, etc., por um único espaço.
-        // 3. Remove espaços no início e no fim da string resultante.
-        // 4. Converte tudo para minúsculas.
         return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
     }
 
-
     function showStatus(message, type = 'info') {
         statusContainer.textContent = message;
-        statusContainer.className = 'text-xs'; // Reset classes
+        statusContainer.className = 'text-xs';
         if (type === 'error') {
             statusContainer.classList.add('text-red-400');
         } else if (type === 'success') {
@@ -209,10 +287,11 @@
         showStatus('Processando arquivos...', 'loading');
         initialMessage.classList.add('hidden');
         tableWrapper.classList.add('hidden');
+        predefinedFiltersContainer.classList.add('hidden');
         resultsTbody.innerHTML = '';
         filterStatus.textContent = '';
         differences = [];
-        displayColumns = []; // Limpa as colunas anteriores
+        displayColumns = [];
 
         try {
             const [data1, data2] = await Promise.all([
@@ -220,7 +299,6 @@
                 readXlsxFile(fileInput2.files[0])
             ]);
             
-            // Define as colunas a serem exibidas com base nos cabeçalhos do arquivo
             if (displayColumns.length === 0) {
                 let headers;
                 if (data2.length > 0) {
@@ -245,10 +323,13 @@
 
             if (differences.length > 0) {
                 renderTable(differences);
+                updatePredefinedFilterCounts(); 
             } else {
                 showStatus('Nenhuma diferença encontrada.', 'info');
                 initialMessage.classList.remove('hidden');
                 initialMessage.querySelector('p').textContent = 'Nenhuma diferença encontrada.';
+                updatePredefinedFilterCounts();
+                nextRowBtn.classList.add('hidden');
             }
 
         } catch (error) {
@@ -259,6 +340,13 @@
     function renderTable(data, searchTerms = []) {
         resultsTbody.innerHTML = '';
         initialMessage.classList.add('hidden');
+        currentRowIndex = -1; 
+        
+        if (data.length > 0) {
+            nextRowBtn.classList.remove('hidden');
+        } else {
+            nextRowBtn.classList.add('hidden');
+        }
         
         const totalCount = differences.length;
         const filteredCount = data.length;
@@ -284,9 +372,8 @@
 
         data.forEach(row => {
             const tr = document.createElement('tr');
-            tr.className = 'border-b border-gray-700 hover:bg-gray-700/50';
+            tr.className = 'border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150';
 
-            // Pega o valor da sexta coluna para o highlight especial
             const pgeCriteraValue = Object.values(row).length > 5 ? Object.values(row)[5] : '';
             const pgeTermsToHighlight = [];
             if (pgeCriteraValue) {
@@ -312,28 +399,12 @@
                 let cellValue = row[colName] || '';
                 let processedCellValue = String(cellValue);
 
-                // Aplica formatação com base no índice da coluna para ser independente do cabeçalho
                 switch (index) {
-                    case 0: // Processo
-                        specificClasses = 'whitespace-normal break-words w-[300px]';
-                        processedCellValue = processedCellValue.replace(/\]/g, ']<br>');
-                        break;
-                    case 3: // Órgão
-                        specificClasses = 'whitespace-normal break-words w-[200px]';
-                        break;
-                    case 4: // Teor da NE
-                        specificClasses = 'whitespace-normal w-[620px]';
-                        if (pgeRegex) {
-                            processedCellValue = processedCellValue.replace(pgeRegex, `<span class="bg-orange-700 rounded px-1">$1</span>`);
-                        }
-                        break;
-                    case 5: // Critérios PGE
-                        specificClasses = 'whitespace-normal break-words w-[200px]';
-                        processedCellValue = processedCellValue.replace(/#/g, '<br>#').replace(/^<br>/, '');
-                        break;
-                    default:
-                        specificClasses = 'whitespace-nowrap';
-                        break;
+                    case 0: specificClasses = 'whitespace-normal break-words w-[300px]'; processedCellValue = processedCellValue.replace(/\]/g, ']<br>'); break;
+                    case 3: specificClasses = 'whitespace-normal break-words w-[200px]'; break;
+                    case 4: specificClasses = 'whitespace-normal w-[620px]'; if (pgeRegex) { processedCellValue = processedCellValue.replace(pgeRegex, `<span class="bg-orange-700 rounded px-1">$1</span>`); } break;
+                    case 5: specificClasses = 'whitespace-normal break-words w-[200px]'; processedCellValue = processedCellValue.replace(/#/g, '<br>#').replace(/^<br>/, ''); break;
+                    default: specificClasses = 'whitespace-nowrap'; break;
                 }
                 td.className = `${baseClasses} ${specificClasses}`;
 
@@ -367,6 +438,11 @@
         const rawSearchText = e.target.value.trim();
         if (!differences.length) return;
 
+        const oldRow = resultsTbody.querySelector('.current-row');
+        if (oldRow) {
+            oldRow.classList.remove('current-row');
+        }
+
         const searchTerms = rawSearchText.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
         
         const cleanedTerms = searchTerms.map(term => 
@@ -380,7 +456,6 @@
 
         const filteredData = differences.filter(row => {
             return cleanedTerms.every(term => {
-                // Filtra buscando em qualquer coluna
                 return Object.values(row).some(cellValue => 
                     String(cellValue || '').toLowerCase().includes(term)
                 );
@@ -390,7 +465,7 @@
         renderTable(filteredData, cleanedTerms);
     };
 
-    filterInput.addEventListener('input', debounce(handleFilterInput, 500));
+    filterInput.addEventListener('input', debounce(handleFilterInput, 300));
 
     infoBtn.addEventListener('click', () => {
         infoModalOverlay.classList.remove('hidden');
@@ -405,7 +480,9 @@
             infoModalOverlay.classList.add('hidden');
         }
     });
-
+    
+    // Inicialização da página
+    setupPredefinedFilters();
     updateCompareButtonState();
     tableWrapper.classList.add('hidden');
 </script>
