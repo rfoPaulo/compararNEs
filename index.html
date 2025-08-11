@@ -37,6 +37,13 @@
             /* Deixa uma margem no topo ao rolar, evitando que a linha fique sob o cabeçalho fixo. */
             scroll-margin-top: 45px; 
         }
+
+        /* NOVO: Estilo para indicar que uma área de arquivo é um alvo de drop válido */
+        .drag-over {
+            border: 2px dashed #3b82f6 !important; /* blue-500 */
+            background-color: #1f2937 !important; /* gray-800 */
+        }
+
         /* Custom scrollbar for better dark mode aesthetics */
         ::-webkit-scrollbar {
             width: 12px;
@@ -116,7 +123,7 @@
         <div id="info-modal" class="bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl mx-4 border border-gray-700">
             <h2 class="text-2xl font-bold text-white mb-4">Instruções de Uso</h2>
             <div class="text-gray-300 space-y-3">
-                <p><strong class="text-blue-400">1. Selecionar Arquivos:</strong> Clique nos botões "Arquivo Base" e "Arquivo Novo" para carregar suas planilhas .xlsx. O "Arquivo Base" é a base de comparação e o "Arquivo Novo" contém os novos dados.</p>
+                <p><strong class="text-blue-400">1. Selecionar Arquivos:</strong> Clique nos botões "Arquivo Base" e "Arquivo Novo" ou arraste e solte suas planilhas .xlsx sobre eles. O "Arquivo Base" é a base de comparação e o "Arquivo Novo" contém os novos dados.</p>
                 <p><strong class="text-blue-400">2. Comparar:</strong> Após selecionar os dois arquivos, clique no botão "Comparar". A aplicação irá processar os dados e exibir na tabela abaixo todas as linhas que estão no Arquivo Novo, mas NÃO no Arquivo Base, com base na 5ª coluna (Teor da NE).</p>
                 <p><strong class="text-blue-400">3. Filtrar Resultados:</strong> Utilize o campo de filtro para refinar a busca nos resultados. Você pode usar o campo de texto ou clicar em um dos botões de "Filtros Rápidos".</p>
                 <p><strong class="text-blue-400">4. Navegar na Tabela:</strong> A tabela pode ser rolada verticalmente e horizontalmente. Quando houver resultados, um botão flutuante com o texto "Próx." aparecerá no canto inferior direito para navegar linha a linha.</p>
@@ -138,6 +145,9 @@
     const fileInput2 = document.getElementById('file-input-2');
     const fileName1 = document.getElementById('file-name-1');
     const fileName2 = document.getElementById('file-name-2');
+    // NOVO: Selecionar os labels que servirão como áreas de drop
+    const dropZone1 = document.querySelector('label[for="file-input-1"]');
+    const dropZone2 = document.querySelector('label[for="file-input-2"]');
     const compareBtn = document.getElementById('compare-btn');
     const statusContainer = document.getElementById('status-container');
     const resultsContainer = document.getElementById('results-container');
@@ -164,327 +174,4 @@
         PREDEFINED_FILTERS.forEach(filterTerm => {
             const button = document.createElement('button');
             button.className = 'text-xs px-2.5 py-1 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors';
-            button.dataset.filter = filterTerm; 
-            button.innerHTML = `${filterTerm} <span class="font-bold text-gray-500">0</span>`;
-            predefinedFiltersContainer.appendChild(button);
-        });
-    }
-
-    function updatePredefinedFilterCounts() {
-        if (differences.length === 0) {
-            predefinedFiltersContainer.classList.add('hidden');
-            return;
-        }
-        predefinedFiltersContainer.classList.remove('hidden');
-
-        PREDEFINED_FILTERS.forEach(filterTerm => {
-            const searchTerm = filterTerm.toLowerCase();
-            if (!searchTerm) return; 
-
-            const count = differences.filter(row => 
-                Object.values(row).some(cellValue => 
-                    String(cellValue || '').toLowerCase().includes(searchTerm)
-                )
-            ).length;
-
-            const button = predefinedFiltersContainer.querySelector(`[data-filter="${filterTerm}"]`);
-            if(button) {
-                const countColorClass = count === 0 ? 'text-gray-500' : 'text-green-400';
-                button.innerHTML = `${filterTerm} <span class="font-bold ${countColorClass}">${count}</span>`;
-            }
-        });
-    }
-    
-    predefinedFiltersContainer.addEventListener('click', (e) => {
-        const button = e.target.closest('button');
-        if (button && button.dataset.filter) {
-            filterInput.value = button.dataset.filter;
-            filterInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    });
-
-    nextRowBtn.addEventListener('click', () => {
-        const visibleRows = resultsTbody.querySelectorAll('tr');
-        if (visibleRows.length === 0) return;
-
-        const oldRow = resultsTbody.querySelector('.current-row');
-        if (oldRow) {
-            oldRow.classList.remove('current-row');
-        }
-        
-        currentRowIndex++;
-        if (currentRowIndex >= visibleRows.length) {
-            currentRowIndex = 0;
-        }
-
-        const newRow = visibleRows[currentRowIndex];
-        if (newRow) {
-            newRow.classList.add('current-row');
-            newRow.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
-        }
-    });
-
-    function updateCompareButtonState() {
-        compareBtn.disabled = !(fileInput1.files.length > 0 && fileInput2.files.length > 0);
-    }
-
-    fileInput1.addEventListener('change', () => {
-        fileName1.textContent = fileInput1.files[0]?.name || 'Nenhum selecionado';
-        updateCompareButtonState();
-    });
-
-    fileInput2.addEventListener('change', () => {
-        fileName2.textContent = fileInput2.files[0]?.name || 'Nenhum selecionado';
-        updateCompareButtonState();
-    });
-
-    function readXlsxFile(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const sheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[sheetName];
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                    resolve(jsonData);
-                } catch (error) {
-                    reject(new Error(`Falha ao processar o arquivo ${file.name}. Verifique se o formato é válido.`));
-                }
-            };
-            reader.onerror = (error) => reject(new Error(`Falha ao ler o arquivo ${file.name}.`));
-            reader.readAsArrayBuffer(file);
-        });
-    }
-
-    function createRowIdentifier(row) {
-        const values = Object.values(row);
-        const value = values.length > 4 ? values[4] : '';
-        return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-    }
-
-    function showStatus(message, type = 'info') {
-        statusContainer.textContent = message;
-        statusContainer.className = 'text-xs';
-        if (type === 'error') {
-            statusContainer.classList.add('text-red-400');
-        } else if (type === 'success') {
-            statusContainer.classList.add('text-green-400');
-        } else if (type === 'loading') {
-            statusContainer.classList.add('text-blue-400');
-        } else {
-             statusContainer.classList.add('text-yellow-300');
-        }
-    }
-
-    compareBtn.addEventListener('click', async () => {
-        if (compareBtn.disabled) return;
-
-        showStatus('Processando arquivos...', 'loading');
-        initialMessage.classList.add('hidden');
-        tableWrapper.classList.add('hidden');
-        predefinedFiltersContainer.classList.add('hidden');
-        resultsTbody.innerHTML = '';
-        filterStatus.textContent = '';
-        differences = [];
-        displayColumns = [];
-
-        try {
-            const [data1, data2] = await Promise.all([
-                readXlsxFile(fileInput1.files[0]),
-                readXlsxFile(fileInput2.files[0])
-            ]);
-            
-            if (displayColumns.length === 0) {
-                let headers;
-                if (data2.length > 0) {
-                    headers = Object.keys(data2[0]);
-                } else if (data1.length > 0) {
-                    headers = Object.keys(data1[0]);
-                }
-                
-                if (headers) {
-                    displayColumns.push(...headers.slice(0, 6));
-                } else {
-                    showStatus('Nenhum dos arquivos contém dados para exibir.', 'info');
-                    return;
-                }
-            }
-
-            showStatus('Comparando dados...', 'loading');
-            const identifiersFile1 = new Set(data1.map(createRowIdentifier));
-            differences = data2.filter(row => !identifiersFile1.has(createRowIdentifier(row)));
-            
-            statusContainer.textContent = '';
-
-            if (differences.length > 0) {
-                renderTable(differences);
-                updatePredefinedFilterCounts(); 
-            } else {
-                showStatus('Nenhuma diferença encontrada.', 'info');
-                initialMessage.classList.remove('hidden');
-                initialMessage.querySelector('p').textContent = 'Nenhuma diferença encontrada.';
-                updatePredefinedFilterCounts();
-                nextRowBtn.classList.add('hidden');
-            }
-
-        } catch (error) {
-            showStatus(error.message, 'error');
-        }
-    });
-
-    function renderTable(data, searchTerms = []) {
-        resultsTbody.innerHTML = '';
-        initialMessage.classList.add('hidden');
-        currentRowIndex = -1; 
-        
-        if (data.length > 0) {
-            nextRowBtn.classList.remove('hidden');
-        } else {
-            nextRowBtn.classList.add('hidden');
-        }
-        
-        const totalCount = differences.length;
-        const filteredCount = data.length;
-        if (totalCount > 0) {
-            filterStatus.className = 'text-xs font-semibold text-green-400 text-center';
-            filterStatus.textContent = `Exibindo ${filteredCount} de ${totalCount} resultado(s).`;
-        } else {
-            filterStatus.textContent = '';
-        }
-
-        if (data.length === 0 && totalCount > 0) {
-            noResultsMessage.classList.remove('hidden');
-            tableWrapper.classList.add('hidden');
-        } else {
-            noResultsMessage.classList.add('hidden');
-            tableWrapper.classList.remove('hidden');
-        }
-
-        const fragment = document.createDocumentFragment();
-        const mainSearchRegex = searchTerms.length > 0 
-            ? new RegExp(`(${searchTerms.map(escapeRegExp).join('|')})`, 'gi')
-            : null;
-
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150';
-
-            const pgeCriteraValue = Object.values(row).length > 5 ? Object.values(row)[5] : '';
-            const pgeTermsToHighlight = [];
-            if (pgeCriteraValue) {
-                const matches = String(pgeCriteraValue).match(/\[(.*?)\]/g);
-                if (matches) {
-                    matches.forEach(match => {
-                        const term = match.substring(1, match.length - 1);
-                        if (term) {
-                            pgeTermsToHighlight.push(escapeRegExp(term));
-                        }
-                    });
-                }
-            }
-            const pgeRegex = pgeTermsToHighlight.length > 0
-                ? new RegExp(`(${pgeTermsToHighlight.join('|')})`, 'gi')
-                : null;
-
-
-            displayColumns.forEach((colName, index) => {
-                const td = document.createElement('td');
-                const baseClasses = 'px-6 py-4 align-top'; 
-                let specificClasses = '';
-                let cellValue = row[colName] || '';
-                let processedCellValue = String(cellValue);
-
-                switch (index) {
-                    case 0: specificClasses = 'whitespace-normal break-words w-[300px]'; processedCellValue = processedCellValue.replace(/\]/g, ']<br>'); break;
-                    case 3: specificClasses = 'whitespace-normal break-words w-[200px]'; break;
-                    case 4: specificClasses = 'whitespace-normal w-[620px]'; if (pgeRegex) { processedCellValue = processedCellValue.replace(pgeRegex, `<span class="bg-orange-700 rounded px-1">$1</span>`); } break;
-                    case 5: specificClasses = 'whitespace-normal break-words w-[200px]'; processedCellValue = processedCellValue.replace(/#/g, '<br>#').replace(/^<br>/, ''); break;
-                    default: specificClasses = 'whitespace-nowrap'; break;
-                }
-                td.className = `${baseClasses} ${specificClasses}`;
-
-                if (mainSearchRegex) {
-                    td.innerHTML = processedCellValue.replace(mainSearchRegex, `<span class="highlight">$1</span>`);
-                } else {
-                    td.innerHTML = processedCellValue;
-                }
-                tr.appendChild(td);
-            });
-            fragment.appendChild(tr);
-        });
-        resultsTbody.appendChild(fragment);
-    }
-
-    function escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-    
-    function debounce(func, delay) {
-        let timeoutId;
-        return function(...args) {
-            clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => {
-                func.apply(this, args);
-            }, delay);
-        };
-    }
-
-    const handleFilterInput = (e) => {
-        const rawSearchText = e.target.value.trim();
-        if (!differences.length) return;
-
-        const oldRow = resultsTbody.querySelector('.current-row');
-        if (oldRow) {
-            oldRow.classList.remove('current-row');
-        }
-
-        const searchTerms = rawSearchText.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
-        
-        const cleanedTerms = searchTerms.map(term => 
-            term.replace(/^"|"$/g, '').toLowerCase()
-        ).filter(term => term);
-
-        if (cleanedTerms.length === 0) {
-            renderTable(differences);
-            return;
-        }
-
-        const filteredData = differences.filter(row => {
-            return cleanedTerms.every(term => {
-                return Object.values(row).some(cellValue => 
-                    String(cellValue || '').toLowerCase().includes(term)
-                );
-            });
-        });
-
-        renderTable(filteredData, cleanedTerms);
-    };
-
-    filterInput.addEventListener('input', debounce(handleFilterInput, 300));
-
-    infoBtn.addEventListener('click', () => {
-        infoModalOverlay.classList.remove('hidden');
-    });
-
-    closeModalBtn.addEventListener('click', () => {
-        infoModalOverlay.classList.add('hidden');
-    });
-
-    infoModalOverlay.addEventListener('click', (e) => {
-        if (e.target === infoModalOverlay) {
-            infoModalOverlay.classList.add('hidden');
-        }
-    });
-    
-    // Inicialização da página
-    setupPredefinedFilters();
-    updateCompareButtonState();
-    tableWrapper.classList.add('hidden');
-</script>
-</body>
-</html>
+            button.dataset.filter = filterTerm
