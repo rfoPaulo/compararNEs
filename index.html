@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="img/icone.png" type="image/png">
     <style>
         /* Estilos personalizados */
         body {
@@ -32,12 +33,10 @@
             outline: 2px solid var(--tw-ring-color);
             outline-offset: -2px;
         }
-        /* ATUALIZADO: Adicionada margem de rolagem para as linhas da tabela */
         tbody tr {
-            /* Deixa uma margem no topo ao rolar, evitando que a linha fique sob o cabeçalho fixo. */
-            scroll-margin-top: 45px; 
+            scroll-margin-top: 45px;
         }
-        /* Custom scrollbar for better dark mode aesthetics */
+        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 12px;
             height: 12px;
@@ -53,6 +52,22 @@
         ::-webkit-scrollbar-thumb:hover {
             background-color: #6b7280; /* gray-500 */
         }
+        /* Estilos para feedback de drag-and-drop */
+        .drop-zone.drag-over-active {
+            border-color: #4ade80 !important; /* green-400, mais chamativo */
+            background-color: rgba(74, 222, 128, 0.2) !important; /* green-400 com opacidade */
+        }
+        .body-drag-over::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.1); /* Leve enuviamento */
+            z-index: 999; /* Garante que fique acima do conteúdo, mas abaixo de modais */
+            pointer-events: none; /* Permite que interações passem por ele */
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200">
@@ -61,17 +76,21 @@
         <div id="control-bar" class="flex-shrink-0 p-2 bg-gray-800 border-b border-gray-700 space-y-2">
             <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <button id="info-btn" class="flex-shrink-0 h-7 w-7 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white font-bold text-sm transition-colors" title="Instruções">?</button>
-                
-                <label for="file-input-1" class="text-sm px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors">Arquivo Base</label>
-                <input type="file" id="file-input-1" class="hidden" accept=".xlsx">
-                <span id="file-name-1" class="text-xs text-green-400 max-w-xs truncate">Nenhum selecionado</span>
 
-                <label for="file-input-2" class="text-sm px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors">Arquivo Novo</label>
-                <input type="file" id="file-input-2" class="hidden" accept=".xlsx">
-                <span id="file-name-2" class="text-xs text-green-400 max-w-xs truncate">Nenhum selecionado</span>
+                <div id="drop-zone-1" class="drop-zone flex items-center gap-x-3 border-2 border-dashed border-gray-600 rounded-md p-2 transition-colors duration-200">
+                    <label for="file-input-1" class="text-sm px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors">Arquivo Base</label>
+                    <input type="file" id="file-input-1" class="hidden" accept=".xlsx">
+                    <span id="file-name-1" class="text-xs text-green-400 max-w-xs truncate">Nenhum selecionado</span>
+                </div>
+
+                <div id="drop-zone-2" class="drop-zone flex items-center gap-x-3 border-2 border-dashed border-gray-600 rounded-md p-2 transition-colors duration-200">
+                    <label for="file-input-2" class="text-sm px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors">Arquivo Novo</label>
+                    <input type="file" id="file-input-2" class="hidden" accept=".xlsx">
+                    <span id="file-name-2" class="text-xs text-green-400 max-w-xs truncate">Nenhum selecionado</span>
+                </div>
 
                 <button id="compare-btn" class="text-sm px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-md transition-colors">Comparar</button>
-                
+
                 <div class="flex-grow">
                     <input type="text" id="filter-input" placeholder='Filtrar... (use "" para frases, ex: "termo 1" termo2)' class="w-full text-sm p-1.5 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500">
                 </div>
@@ -83,8 +102,7 @@
         </div>
 
         <div id="predefined-filters-container" class="flex-shrink-0 p-2 border-b border-gray-700 flex flex-wrap items-center gap-x-3 gap-y-2 hidden">
-             </div>
-
+        </div>
 
         <div id="results-container" class="flex-grow flex flex-col overflow-hidden">
              <div id="table-wrapper" class="flex-grow overflow-auto bg-gray-900">
@@ -99,8 +117,8 @@
                             <th scope="col" class="px-6 py-3">Critérios PGE</th>
                         </tr>
                     </thead>
-                    <tbody id="results-tbody" class="bg-gray-800">
-                        </tbody>
+                    <tbody id="results-tbody" class="bg-gray-200 text-black">
+                    </tbody>
                 </table>
             </div>
              <div id="no-results-message" class="flex-grow flex items-center justify-center text-gray-500 hidden">
@@ -116,7 +134,7 @@
         <div id="info-modal" class="bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl mx-4 border border-gray-700">
             <h2 class="text-2xl font-bold text-white mb-4">Instruções de Uso</h2>
             <div class="text-gray-300 space-y-3">
-                <p><strong class="text-blue-400">1. Selecionar Arquivos:</strong> Clique nos botões "Arquivo Base" e "Arquivo Novo" para carregar suas planilhas .xlsx. O "Arquivo Base" é a base de comparação e o "Arquivo Novo" contém os novos dados.</p>
+                <p><strong class="text-blue-400">1. Selecionar Arquivos:</strong> Clique nos botões "Arquivo Base" e "Arquivo Novo" para carregar suas planilhas .xlsx. <strong class="text-green-400">Alternativamente, arraste e solte os arquivos nas áreas designadas.</strong></p>
                 <p><strong class="text-blue-400">2. Comparar:</strong> Após selecionar os dois arquivos, clique no botão "Comparar". A aplicação irá processar os dados e exibir na tabela abaixo todas as linhas que estão no Arquivo Novo, mas NÃO no Arquivo Base, com base na 5ª coluna (Teor da NE).</p>
                 <p><strong class="text-blue-400">3. Filtrar Resultados:</strong> Utilize o campo de filtro para refinar a busca nos resultados. Você pode usar o campo de texto ou clicar em um dos botões de "Filtros Rápidos".</p>
                 <p><strong class="text-blue-400">4. Navegar na Tabela:</strong> A tabela pode ser rolada verticalmente e horizontalmente. Quando houver resultados, um botão flutuante com o texto "Próx." aparecerá no canto inferior direito para navegar linha a linha.</p>
@@ -130,7 +148,6 @@
     <button id="next-row-btn" title="Próxima Linha" class="hidden fixed bottom-6 right-6 h-12 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full flex items-center justify-center shadow-lg transition-transform duration-200 hover:scale-110">
         Próx.
     </button>
-
 
     <script>
     // Elementos da DOM
@@ -150,21 +167,66 @@
     const infoBtn = document.getElementById('info-btn');
     const infoModalOverlay = document.getElementById('info-modal-overlay');
     const closeModalBtn = document.getElementById('close-modal-btn');
-    const nextRowBtn = document.getElementById('next-row-btn'); 
+    const nextRowBtn = document.getElementById('next-row-btn');
     const predefinedFiltersContainer = document.getElementById('predefined-filters-container');
+    const dropZone1 = document.getElementById('drop-zone-1');
+    const dropZone2 = document.getElementById('drop-zone-2');
+    const body = document.body;
 
     let differences = [];
     let displayColumns = [];
-    let currentRowIndex = -1; 
+    let currentRowIndex = -1;
 
-    const PREDEFINED_FILTERS = ['#proc', '[audiencia]', '[pauta]', '[s]', '[trt4]', '[corag]'];
+    const PREDEFINED_FILTERS = ['#proc', '[exprovas] [n] #pge', '[corag]', 'graficas]', '[audiencia] [s]', '[pauta] [s]', '[pauta] [n] #pge_repint', '[audiencia] [n] #pge_repint', '[audiencia] [n] #PGE_Extinta', '[pauta] [n] #PGE_Extinta'];
+
+    // --- LÓGICA DE DRAG AND DROP ATUALIZADA ---
+    function setupDropZone(dropZone, fileInput) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('drag-over-active');
+                body.classList.add('body-drag-over');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('drag-over-active');
+                if (!document.querySelector('.drop-zone.drag-over-active')) {
+                    body.classList.remove('body-drag-over');
+                }
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+
+            if (files.length > 0) {
+                if (files[0].name.endsWith('.xlsx')) {
+                    fileInput.files = files;
+                    const event = new Event('change', { bubbles: true });
+                    fileInput.dispatchEvent(event);
+                } else {
+                    alert('Por favor, solte apenas arquivos no formato .xlsx');
+                }
+            }
+        }, false);
+    }
+    // --- FIM DA LÓGICA DE DRAG AND DROP ---
 
     function setupPredefinedFilters() {
-        predefinedFiltersContainer.innerHTML = ''; 
+        predefinedFiltersContainer.innerHTML = '';
         PREDEFINED_FILTERS.forEach(filterTerm => {
             const button = document.createElement('button');
             button.className = 'text-xs px-2.5 py-1 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors';
-            button.dataset.filter = filterTerm; 
+            button.dataset.filter = filterTerm;
             button.innerHTML = `${filterTerm} <span class="font-bold text-gray-500">0</span>`;
             predefinedFiltersContainer.appendChild(button);
         });
@@ -179,10 +241,10 @@
 
         PREDEFINED_FILTERS.forEach(filterTerm => {
             const searchTerm = filterTerm.toLowerCase();
-            if (!searchTerm) return; 
+            if (!searchTerm) return;
 
-            const count = differences.filter(row => 
-                Object.values(row).some(cellValue => 
+            const count = differences.filter(row =>
+                Object.values(row).some(cellValue =>
                     String(cellValue || '').toLowerCase().includes(searchTerm)
                 )
             ).length;
@@ -194,7 +256,7 @@
             }
         });
     }
-    
+
     predefinedFiltersContainer.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (button && button.dataset.filter) {
@@ -211,7 +273,7 @@
         if (oldRow) {
             oldRow.classList.remove('current-row');
         }
-        
+
         currentRowIndex++;
         if (currentRowIndex >= visibleRows.length) {
             currentRowIndex = 0;
@@ -298,7 +360,7 @@
                 readXlsxFile(fileInput1.files[0]),
                 readXlsxFile(fileInput2.files[0])
             ]);
-            
+
             if (displayColumns.length === 0) {
                 let headers;
                 if (data2.length > 0) {
@@ -306,7 +368,7 @@
                 } else if (data1.length > 0) {
                     headers = Object.keys(data1[0]);
                 }
-                
+
                 if (headers) {
                     displayColumns.push(...headers.slice(0, 6));
                 } else {
@@ -318,12 +380,12 @@
             showStatus('Comparando dados...', 'loading');
             const identifiersFile1 = new Set(data1.map(createRowIdentifier));
             differences = data2.filter(row => !identifiersFile1.has(createRowIdentifier(row)));
-            
+
             statusContainer.textContent = '';
 
             if (differences.length > 0) {
                 renderTable(differences);
-                updatePredefinedFilterCounts(); 
+                updatePredefinedFilterCounts();
             } else {
                 showStatus('Nenhuma diferença encontrada.', 'info');
                 initialMessage.classList.remove('hidden');
@@ -340,14 +402,14 @@
     function renderTable(data, searchTerms = []) {
         resultsTbody.innerHTML = '';
         initialMessage.classList.add('hidden');
-        currentRowIndex = -1; 
-        
+        currentRowIndex = -1;
+
         if (data.length > 0) {
             nextRowBtn.classList.remove('hidden');
         } else {
             nextRowBtn.classList.add('hidden');
         }
-        
+
         const totalCount = differences.length;
         const filteredCount = data.length;
         if (totalCount > 0) {
@@ -366,13 +428,13 @@
         }
 
         const fragment = document.createDocumentFragment();
-        const mainSearchRegex = searchTerms.length > 0 
+        const mainSearchRegex = searchTerms.length > 0
             ? new RegExp(`(${searchTerms.map(escapeRegExp).join('|')})`, 'gi')
             : null;
 
         data.forEach(row => {
             const tr = document.createElement('tr');
-            tr.className = 'border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150';
+            tr.className = 'border-b border-gray-700 hover:bg-gray-700/15 transition-colors duration-150';
 
             const pgeCriteraValue = Object.values(row).length > 5 ? Object.values(row)[5] : '';
             const pgeTermsToHighlight = [];
@@ -394,7 +456,7 @@
 
             displayColumns.forEach((colName, index) => {
                 const td = document.createElement('td');
-                const baseClasses = 'px-6 py-4 align-top'; 
+                const baseClasses = 'px-6 py-4 align-top';
                 let specificClasses = '';
                 let cellValue = row[colName] || '';
                 let processedCellValue = String(cellValue);
@@ -402,7 +464,7 @@
                 switch (index) {
                     case 0: specificClasses = 'whitespace-normal break-words w-[300px]'; processedCellValue = processedCellValue.replace(/\]/g, ']<br>'); break;
                     case 3: specificClasses = 'whitespace-normal break-words w-[200px]'; break;
-                    case 4: specificClasses = 'whitespace-normal w-[620px]'; if (pgeRegex) { processedCellValue = processedCellValue.replace(pgeRegex, `<span class="bg-orange-700 rounded px-1">$1</span>`); } break;
+                    case 4: specificClasses = 'whitespace-normal w-[620px]'; if (pgeRegex) { processedCellValue = processedCellValue.replace(pgeRegex, `<span class="bg-orange-400 rounded px-1">$1</span>`); } break;
                     case 5: specificClasses = 'whitespace-normal break-words w-[200px]'; processedCellValue = processedCellValue.replace(/#/g, '<br>#').replace(/^<br>/, ''); break;
                     default: specificClasses = 'whitespace-nowrap'; break;
                 }
@@ -423,7 +485,7 @@
     function escapeRegExp(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
-    
+
     function debounce(func, delay) {
         let timeoutId;
         return function(...args) {
@@ -444,8 +506,8 @@
         }
 
         const searchTerms = rawSearchText.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
-        
-        const cleanedTerms = searchTerms.map(term => 
+
+        const cleanedTerms = searchTerms.map(term =>
             term.replace(/^"|"$/g, '').toLowerCase()
         ).filter(term => term);
 
@@ -456,7 +518,7 @@
 
         const filteredData = differences.filter(row => {
             return cleanedTerms.every(term => {
-                return Object.values(row).some(cellValue => 
+                return Object.values(row).some(cellValue =>
                     String(cellValue || '').toLowerCase().includes(term)
                 );
             });
@@ -480,11 +542,14 @@
             infoModalOverlay.classList.add('hidden');
         }
     });
-    
+
     // Inicialização da página
     setupPredefinedFilters();
     updateCompareButtonState();
     tableWrapper.classList.add('hidden');
+    // Inicializa as zonas de drop
+    setupDropZone(dropZone1, fileInput1);
+    setupDropZone(dropZone2, fileInput2);
 </script>
 </body>
 </html>
