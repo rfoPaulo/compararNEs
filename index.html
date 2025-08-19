@@ -179,7 +179,7 @@
 
     const PREDEFINED_FILTERS = ['#proc', '[exprovas] [n] #pge', '[corag]', 'graficas]', '[audiencia] [s]', '[pauta] [s]', '[pauta] [n] #pge_repint', '[audiencia] [n] #pge_repint', '[audiencia] [n] #PGE_Extinta', '[pauta] [n] #PGE_Extinta'];
 
-    // --- LÓGICA DE DRAG AND DROP ATUALIZADA ---
+    // --- LÓGICA DE DRAG AND DROP ---
     function setupDropZone(dropZone, fileInput) {
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, (e) => {
@@ -219,8 +219,7 @@
             }
         }, false);
     }
-    // --- FIM DA LÓGICA DE DRAG AND DROP ---
-
+    
     function setupPredefinedFilters() {
         predefinedFiltersContainer.innerHTML = '';
         PREDEFINED_FILTERS.forEach(filterTerm => {
@@ -232,6 +231,8 @@
         });
     }
 
+    // --- CORREÇÃO [INÍCIO]: Lógica de contagem dos pré-filtros ---
+    // A função agora replica a lógica de filtragem principal para garantir que a contagem seja precisa.
     function updatePredefinedFilterCounts() {
         if (differences.length === 0) {
             predefinedFiltersContainer.classList.add('hidden');
@@ -240,27 +241,62 @@
         predefinedFiltersContainer.classList.remove('hidden');
 
         PREDEFINED_FILTERS.forEach(filterTerm => {
-            const searchTerm = filterTerm.toLowerCase();
-            if (!searchTerm) return;
-
-            const count = differences.filter(row =>
-                Object.values(row).some(cellValue =>
-                    String(cellValue || '').toLowerCase().includes(searchTerm)
-                )
-            ).length;
-
             const button = predefinedFiltersContainer.querySelector(`[data-filter="${filterTerm}"]`);
-            if(button) {
-                const countColorClass = count === 0 ? 'text-gray-500' : 'text-green-400';
-                button.innerHTML = `${filterTerm} <span class="font-bold ${countColorClass}">${count}</span>`;
+            if (!button) return;
+            
+            // Lógica de divisão dos termos, idêntica à da filtragem principal
+            const searchTerms = filterTerm.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+            const cleanedTerms = searchTerms.map(term =>
+                term.replace(/^"|"$/g, '').toLowerCase()
+            ).filter(term => term);
+
+            if (cleanedTerms.length === 0) {
+                 const countColorClass = 'text-gray-500';
+                 button.innerHTML = `${filterTerm} <span class="font-bold ${countColorClass}">0</span>`;
+                 return;
+            }
+            
+            // Lógica de contagem, agora verificando se CADA termo existe na linha
+            const count = differences.filter(row => {
+                return cleanedTerms.every(term => {
+                    return Object.values(row).some(cellValue =>
+                        String(cellValue || '').toLowerCase().includes(term)
+                    );
+                });
+            }).length;
+
+            const countColorClass = count === 0 ? 'text-gray-500' : 'text-green-400';
+            button.innerHTML = `${filterTerm} <span class="font-bold ${countColorClass}">${count}</span>`;
+        });
+    }
+    // --- CORREÇÃO [FIM] ---
+
+    // --- MELHORIA [INÍCIO]: Destacar botão do pré-filtro ativo ---
+    function updateActiveFilterButton() {
+        const currentFilter = filterInput.value.trim();
+        const buttons = predefinedFiltersContainer.querySelectorAll('button');
+
+        buttons.forEach(button => {
+            const buttonFilter = button.dataset.filter.trim();
+
+            if (currentFilter.toLowerCase() === buttonFilter.toLowerCase()) {
+                // Estilo ativo
+                button.classList.remove('bg-gray-700', 'hover:bg-gray-600');
+                button.classList.add('bg-blue-600', 'text-white', 'font-semibold');
+            } else {
+                // Estilo padrão
+                button.classList.add('bg-gray-700', 'hover:bg-gray-600');
+                button.classList.remove('bg-blue-600', 'text-white', 'font-semibold');
             }
         });
     }
+    // --- MELHORIA [FIM] ---
 
     predefinedFiltersContainer.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (button && button.dataset.filter) {
             filterInput.value = button.dataset.filter;
+            // Dispara o evento 'input' para acionar a filtragem e a atualização dos botões
             filterInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
     });
@@ -386,11 +422,13 @@
             if (differences.length > 0) {
                 renderTable(differences);
                 updatePredefinedFilterCounts();
+                updateActiveFilterButton(); // Atualiza o estado dos botões
             } else {
                 showStatus('Nenhuma diferença encontrada.', 'info');
                 initialMessage.classList.remove('hidden');
                 initialMessage.querySelector('p').textContent = 'Nenhuma diferença encontrada.';
                 updatePredefinedFilterCounts();
+                updateActiveFilterButton(); // Limpa o estado dos botões
                 nextRowBtn.classList.add('hidden');
             }
 
@@ -513,6 +551,7 @@
 
         if (cleanedTerms.length === 0) {
             renderTable(differences);
+            updateActiveFilterButton(); // Atualiza o estado dos botões
             return;
         }
 
@@ -525,6 +564,7 @@
         });
 
         renderTable(filteredData, cleanedTerms);
+        updateActiveFilterButton(); // Atualiza o estado dos botões
     };
 
     filterInput.addEventListener('input', debounce(handleFilterInput, 300));
