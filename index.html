@@ -265,7 +265,7 @@
                 });
             }).length;
 
-            const countColorClass = count === 0 ? 'text-gray-500' : 'text-green-400';
+            const countColorClass = count === 0 ? 'text-gray-500' : 'text-lime-300 text-sm bg-gray-600 rounded-full py-[1px] px-1.5 ml-[4px]';
             button.innerHTML = `${filterTerm} <span class="font-bold ${countColorClass}">${count}</span>`;
         });
     }
@@ -281,12 +281,12 @@
 
             if (currentFilter.toLowerCase() === buttonFilter.toLowerCase()) {
                 // Estilo ativo
-                button.classList.remove('bg-gray-700', 'hover:bg-gray-600');
-                button.classList.add('bg-blue-600', 'text-white', 'font-semibold');
+                button.classList.remove('bg-gray-700', 'hover:bg-gray-600', 'text-xs');
+                button.classList.add('bg-blue-600', 'text-white', 'font-semibold', 'text-sm');
             } else {
                 // Estilo padrão
-                button.classList.add('bg-gray-700', 'hover:bg-gray-600');
-                button.classList.remove('bg-blue-600', 'text-white', 'font-semibold');
+                button.classList.add('bg-gray-700', 'hover:bg-gray-600', 'text-xs');
+                button.classList.remove('bg-blue-600', 'text-white', 'font-semibold', 'text-sm');
             }
         });
     }
